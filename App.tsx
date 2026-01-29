@@ -22,7 +22,7 @@ const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [currentView, setCurrentView] = useState<'timeline' | 'list'>('timeline');
   const [isLoading, setIsLoading] = useState(false);
-  const [suggestion, setSuggestion] = useState("正在为您规划美好的一天...");
+  const [suggestion, setSuggestion] = useState("欢迎回来，开启有规划的一天吧 🌱");
   const [input, setInput] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -54,6 +54,14 @@ const App: React.FC = () => {
   const filteredTasks = useMemo(() => tasks.filter(t => t.date === selectedDate), [tasks, selectedDate]);
 
   useEffect(() => {
+    // 只有在配置了 Key 或者不是默认状态下才去获取建议
+    const hasKey = (aiConfig.provider === AIProvider.GEMINI && process.env.API_KEY && process.env.API_KEY !== 'undefined') || aiConfig.apiKey;
+    
+    if (!hasKey) {
+      setSuggestion("配置 AI 引擎后，我将为您提供每日贴心建议 ✨");
+      return;
+    }
+
     const loadSuggestion = async () => {
       if (filteredTasks.length > 0) {
         const msg = await getSmartSuggestions(filteredTasks, aiConfig);
@@ -62,7 +70,7 @@ const App: React.FC = () => {
         setSuggestion("这一天还没有安排，要不先定个小目标？🌱");
       }
     };
-    const timer = setTimeout(loadSuggestion, 1000);
+    const timer = setTimeout(loadSuggestion, 1500); // 增加初始延迟
     return () => clearTimeout(timer);
   }, [filteredTasks, aiConfig]);
 
@@ -73,6 +81,26 @@ const App: React.FC = () => {
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
+    
+    const hasKey = (aiConfig.provider === AIProvider.GEMINI && process.env.API_KEY && process.env.API_KEY !== 'undefined') || aiConfig.apiKey;
+
+    if (!hasKey) {
+      // 无 Key 模式直接添加
+      const newTask: Task = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: input,
+        startTime: "09:00",
+        endTime: "10:00",
+        category: Category.LIFE,
+        priority: Priority.MEDIUM,
+        completed: false,
+        date: selectedDate
+      };
+      setTasks(prev => [...prev, newTask]);
+      setInput('');
+      return;
+    }
+
     setIsLoading(true);
     const result = await parseNLPTask(input, aiConfig);
     const newTask: Task = {
@@ -160,7 +188,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Settings Modal - 复用逻辑并美化 */}
+      {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowSettings(false)}></div>
@@ -177,17 +205,17 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">模型 ID</label>
-                  <input type="text" value={aiConfig.modelId} onChange={(e) => setAiConfig({...aiConfig, modelId: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 text-sm outline-none" />
+                  <input type="text" value={aiConfig.modelId} onChange={(e) => setAiConfig({...aiConfig, modelId: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 text-sm outline-none dark:text-white" />
                 </div>
                 {aiConfig.provider !== AIProvider.GEMINI && (
                   <>
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">基础 URL</label>
-                      <input type="text" value={aiConfig.baseUrl} onChange={(e) => setAiConfig({...aiConfig, baseUrl: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 text-sm outline-none" />
+                      <input type="text" value={aiConfig.baseUrl} onChange={(e) => setAiConfig({...aiConfig, baseUrl: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 text-sm outline-none dark:text-white" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">API Key</label>
-                      <input type="password" value={aiConfig.apiKey} onChange={(e) => setAiConfig({...aiConfig, apiKey: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 text-sm outline-none" />
+                      <input type="password" value={aiConfig.apiKey} onChange={(e) => setAiConfig({...aiConfig, apiKey: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 text-sm outline-none dark:text-white" />
                     </div>
                   </>
                 )}
@@ -198,7 +226,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Review Modal - 复用逻辑并美化 */}
+      {/* Review Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xl">
           <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3.5rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh] no-scrollbar">
@@ -206,7 +234,7 @@ const App: React.FC = () => {
               <div className="text-center space-y-8">
                 <div className="text-4xl">📔</div>
                 <h2 className="text-3xl font-black font-humanist">记录今日闪光点</h2>
-                <textarea placeholder="这一天最难忘的是..." className="w-full bg-slate-50 dark:bg-slate-800 rounded-[2rem] p-6 text-lg outline-none min-h-[150px]" />
+                <textarea placeholder="这一天最难忘的是..." className="w-full bg-slate-50 dark:bg-slate-800 rounded-[2rem] p-6 text-lg outline-none min-h-[150px] dark:text-white" />
                 <div className="flex gap-4">
                   <button onClick={() => setShowReviewModal(false)} className="flex-1 py-5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-[1.8rem] font-black text-sm">取消</button>
                   <button 

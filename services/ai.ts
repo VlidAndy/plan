@@ -2,10 +2,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NLPResult, Category, AIConfig, AIProvider, Task } from "../types";
 
-// Gemini Native Client
-const geminiAi = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// 延迟初始化 Gemini，以防 API_KEY 为空
+let geminiAi: GoogleGenAI | null = null;
+const getGeminiClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === "undefined" || apiKey.includes("YOUR_API_KEY")) {
+    return null;
+  }
+  if (!geminiAi) {
+    geminiAi = new GoogleGenAI({ apiKey });
+  }
+  return geminiAi;
+};
 
 async function callOpenAICompatible(config: AIConfig, prompt: string, systemInstruction?: string, responseFormat?: 'json_object' | 'text') {
+  if (!config.apiKey && !process.env.API_KEY) {
+    throw new Error("Missing API Key for OpenAI compatible provider");
+  }
+  
   const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`;
   const response = await fetch(url, {
     method: 'POST',
@@ -33,7 +47,12 @@ export async function parseNLPTask(input: string, config: AIConfig): Promise<Par
   
   try {
     if (config.provider === AIProvider.GEMINI) {
-      const response = await geminiAi.models.generateContent({
+      const client = getGeminiClient();
+      if (!client) {
+        console.warn("Gemini API Key not set, skipping AI parsing.");
+        return { title: input };
+      }
+      const response = await client.models.generateContent({
         model: config.modelId,
         contents: prompt,
         config: {
@@ -69,7 +88,10 @@ export async function getSmartSuggestions(tasks: Task[], config: AIConfig): Prom
 
   try {
     if (config.provider === AIProvider.GEMINI) {
-      const response = await geminiAi.models.generateContent({
+      const client = getGeminiClient();
+      if (!client) return "保持专注，也要记得给心灵留白 ✨";
+      
+      const response = await client.models.generateContent({
         model: config.modelId,
         contents: prompt,
         config: { systemInstruction: system }
@@ -83,13 +105,15 @@ export async function getSmartSuggestions(tasks: Task[], config: AIConfig): Prom
   }
 }
 
-// 图像生成目前依然主要依赖 Gemini 2.5/3.0，因为 OpenAI DALL-E 接口结构不同，此处保留 Gemini 逻辑
 export async function generateJournalImage(tasks: Task[], mood: string | null, modelId: string = "gemini-2.5-flash-image"): Promise<string | null> {
   try {
+    const client = getGeminiClient();
+    if (!client) return null;
+
     const completedTasks = tasks.filter(t => t.completed).map(t => t.title).join(', ');
     const prompt = `A aesthetic watercolor illustration of a daily journal. Mood: ${mood || 'peaceful'}. Achievements: ${completedTasks || 'started today'}. Ghibli style.`;
 
-    const response = await geminiAi.models.generateContent({
+    const response = await client.models.generateContent({
       model: modelId,
       contents: { parts: [{ text: prompt }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
