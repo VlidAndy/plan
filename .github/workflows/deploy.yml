@@ -21,7 +21,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          # 移除了 cache: 'npm'，因为项目中目前没有 package-lock.json
 
       - name: Install dependencies
         run: npm install
