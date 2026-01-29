@@ -1,0 +1,7 @@
+{
+  "name": "Copy of 朝暮计划 - 治愈系日程管理",
+  "description": "融合晨间规划、日间执行与晚间复盘的清新日程工具。具备时间轴可视化、AI智能录入与建议、以及情感化交互设计。",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
