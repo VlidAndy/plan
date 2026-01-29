@@ -18,22 +18,30 @@ export enum Mood {
   SAD = '😔'
 }
 
+export enum AIProvider {
+  GEMINI = 'gemini',
+  OPENAI = 'openai',
+  DEEPSEEK = 'deepseek',
+  CUSTOM = 'custom'
+}
+
+export interface AIConfig {
+  provider: AIProvider;
+  baseUrl: string;
+  apiKey: string;
+  modelId: string;
+}
+
 export interface Task {
   id: string;
   title: string;
-  startTime: string; // HH:mm
-  endTime: string;   // HH:mm
+  startTime: string; 
+  endTime: string;   
   category: Category;
   priority: Priority;
   completed: boolean;
   review?: string;
-  date: string; // YYYY-MM-DD
-}
-
-export interface UserStats {
-  completionRate: number;
-  focusTimeMinutes: number;
-  mood?: Mood;
+  date: string; 
 }
 
 export interface NLPResult {

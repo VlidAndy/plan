@@ -4,10 +4,10 @@ import { NLPResult, Category, Priority, Task } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export async function parseNLPTask(input: string): Promise<Partial<NLPResult>> {
+export async function parseNLPTask(input: string, model: string = "gemini-3-flash-preview"): Promise<Partial<NLPResult>> {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: model,
       contents: `将以下自然语言日程描述解析为JSON对象。输入: "${input}"`,
       config: {
         responseMimeType: "application/json",
@@ -41,11 +41,11 @@ export async function parseNLPTask(input: string): Promise<Partial<NLPResult>> {
   }
 }
 
-export async function getSmartSuggestions(tasks: Task[]): Promise<string> {
+export async function getSmartSuggestions(tasks: Task[], model: string = "gemini-3-flash-preview"): Promise<string> {
   try {
     const taskSummary = tasks.map(t => `${t.startTime}-${t.endTime}: ${t.title}`).join(', ');
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: model,
       contents: `基于目前的日程: [${taskSummary}]，作为一位贴心的私人助理，给出一个极简的建议（20字以内）。`,
       config: {
         systemInstruction: "你是一个清新、治愈、温柔的日程小助手，语气像宫崎骏电影里的角色。"
@@ -57,7 +57,7 @@ export async function getSmartSuggestions(tasks: Task[]): Promise<string> {
   }
 }
 
-export async function generateJournalImage(tasks: Task[], mood: string | null): Promise<string | null> {
+export async function generateJournalImage(tasks: Task[], mood: string | null, model: string = "gemini-2.5-flash-image"): Promise<string | null> {
   try {
     const completedTasks = tasks.filter(t => t.completed).map(t => t.title).join(', ');
     const prompt = `A hand-drawn, aesthetic watercolor illustration of a daily journal summary. 
@@ -67,7 +67,7 @@ export async function generateJournalImage(tasks: Task[], mood: string | null): 
     Style: Soft colors, Studio Ghibli inspired, high quality, artistic sketch, cozy atmosphere.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: model,
       contents: {
         parts: [{ text: prompt }]
       },
