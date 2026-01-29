@@ -4,14 +4,24 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # 允许手动触发
+  workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# 确保同一时间只有一个部署在运行，防止冲突
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,7 +31,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # 移除了 cache: 'npm'，因为项目中目前没有 package-lock.json
 
       - name: Install dependencies
         run: npm install
@@ -30,9 +39,6 @@ jobs:
         run: npm run build
         env:
           API_KEY: ${{ secrets.API_KEY }}
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
