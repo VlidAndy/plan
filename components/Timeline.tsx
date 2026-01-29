@@ -6,10 +6,11 @@ import { CATEGORY_COLORS } from '../constants';
 interface TimelineProps {
   tasks: Task[];
   onToggleTask: (id: string) => void;
+  onDeleteTask: (id: string) => void;
   onAddTaskAt: (hour: number) => void;
 }
 
-const Timeline: React.FC<TimelineProps> = ({ tasks, onToggleTask, onAddTaskAt }) => {
+const Timeline: React.FC<TimelineProps> = ({ tasks, onToggleTask, onDeleteTask, onAddTaskAt }) => {
   const hours = Array.from({ length: 19 }, (_, i) => i + 6); // 06:00 to 24:00
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -127,12 +128,25 @@ const Timeline: React.FC<TimelineProps> = ({ tasks, onToggleTask, onAddTaskAt })
                 </div>
               </div>
               
-              {!task.completed && (
-                 <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity self-end mt-2">
-                   <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg text-xs transition-colors" title="编辑">✏️</button>
-                   <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg text-xs transition-colors" title="延后">⏱️</button>
-                 </div>
-              )}
+              <div className="opacity-40 group-hover:opacity-100 flex gap-1 transition-opacity self-end mt-2">
+                {!task.completed && (
+                  <>
+                    <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg text-xs transition-colors" title="编辑" onClick={(e) => e.stopPropagation()}>✏️</button>
+                    <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg text-xs transition-colors" title="延后" onClick={(e) => e.stopPropagation()}>⏱️</button>
+                  </>
+                )}
+                <button 
+                  className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg text-xs transition-colors text-red-400 z-50" 
+                  title="删除" 
+                  onClick={(e) => { 
+                    e.preventDefault(); 
+                    e.stopPropagation(); 
+                    onDeleteTask(task.id); 
+                  }}
+                >
+                  🗑️
+                </button>
+              </div>
 
               {/* Success Particle Decoration for completed */}
               {task.completed && (

@@ -28,6 +28,9 @@ const App: React.FC = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [journalImage, setJournalImage] = useState<string | null>(null);
   const [isGeneratingJournal, setIsGeneratingJournal] = useState(false);
+  
+  // 删除确认状态
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const [aiConfig, setAiConfig] = useState<AIConfig>({
     provider: AIProvider.GEMINI,
@@ -54,7 +57,6 @@ const App: React.FC = () => {
   const filteredTasks = useMemo(() => tasks.filter(t => t.date === selectedDate), [tasks, selectedDate]);
 
   useEffect(() => {
-    // 只有在配置了 Key 或者不是默认状态下才去获取建议
     const hasKey = (aiConfig.provider === AIProvider.GEMINI && process.env.API_KEY && process.env.API_KEY !== 'undefined') || aiConfig.apiKey;
     
     if (!hasKey) {
@@ -70,7 +72,7 @@ const App: React.FC = () => {
         setSuggestion("这一天还没有安排，要不先定个小目标？🌱");
       }
     };
-    const timer = setTimeout(loadSuggestion, 1500); // 增加初始延迟
+    const timer = setTimeout(loadSuggestion, 1500);
     return () => clearTimeout(timer);
   }, [filteredTasks, aiConfig]);
 
@@ -78,19 +80,31 @@ const App: React.FC = () => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
 
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      setTasks(prev => prev.filter(t => t.id !== deleteConfirmId));
+      setDeleteConfirmId(null);
+    }
+  };
+
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
     
+    const now = new Date();
+    const isToday = selectedDate === now.toISOString().split('T')[0];
+    const defaultStartHour = isToday ? (now.getHours() + 1) % 24 : 9;
+    const defaultStartTime = `${String(defaultStartHour).padStart(2, '0')}:00`;
+    const defaultEndTime = `${String((defaultStartHour + 1) % 24).padStart(2, '0')}:00`;
+
     const hasKey = (aiConfig.provider === AIProvider.GEMINI && process.env.API_KEY && process.env.API_KEY !== 'undefined') || aiConfig.apiKey;
 
     if (!hasKey) {
-      // 无 Key 模式直接添加
       const newTask: Task = {
         id: Math.random().toString(36).substr(2, 9),
         title: input,
-        startTime: "09:00",
-        endTime: "10:00",
+        startTime: defaultStartTime,
+        endTime: defaultEndTime,
         category: Category.LIFE,
         priority: Priority.MEDIUM,
         completed: false,
@@ -106,8 +120,8 @@ const App: React.FC = () => {
     const newTask: Task = {
       id: Math.random().toString(36).substr(2, 9),
       title: result.title || input,
-      startTime: result.startTime || "09:00",
-      endTime: result.endTime || "10:00",
+      startTime: result.startTime || defaultStartTime,
+      endTime: result.endTime || defaultEndTime,
       category: (result.category as Category) || Category.LIFE,
       priority: result.priority || Priority.MEDIUM,
       completed: false,
@@ -161,14 +175,14 @@ const App: React.FC = () => {
         {/* 三列布局网格 */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           <div className="md:col-span-3">
-            <SidebarLeft tasks={filteredTasks} onToggleTask={toggleTask} />
+            <SidebarLeft tasks={filteredTasks} onToggleTask={toggleTask} onDeleteTask={(id) => setDeleteConfirmId(id)} />
           </div>
 
           <main className="md:col-span-6 space-y-8">
             {currentView === 'timeline' ? (
-              <Timeline tasks={filteredTasks} onToggleTask={toggleTask} onAddTaskAt={(h) => setInput(`${String(h).padStart(2, '0')}:00 `)} />
+              <Timeline tasks={filteredTasks} onToggleTask={toggleTask} onDeleteTask={(id) => setDeleteConfirmId(id)} onAddTaskAt={(h) => setInput(`${String(h).padStart(2, '0')}:00 `)} />
             ) : (
-              <ListView tasks={filteredTasks} onToggleTask={toggleTask} />
+              <ListView tasks={filteredTasks} onToggleTask={toggleTask} onDeleteTask={(id) => setDeleteConfirmId(id)} />
             )}
 
             {isEvening && selectedDate === new Date().toISOString().split('T')[0] && (
@@ -187,6 +201,24 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setDeleteConfirmId(null)}></div>
+          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-8 flex flex-col items-center text-center gap-6 animate-in zoom-in duration-200">
+            <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-2xl flex items-center justify-center text-3xl">🗑️</div>
+            <div>
+              <h3 className="text-xl font-bold dark:text-white">确定要删除吗？</h3>
+              <p className="text-sm text-slate-400 mt-2">此操作将永久移除该计划。</p>
+            </div>
+            <div className="flex gap-3 w-full">
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold text-sm">取消</button>
+              <button onClick={confirmDelete} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-red-500/20">确认删除</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Settings Modal */}
       {showSettings && (

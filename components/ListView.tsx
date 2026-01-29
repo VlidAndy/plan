@@ -6,9 +6,10 @@ import { CATEGORY_COLORS } from '../constants';
 interface ListViewProps {
   tasks: Task[];
   onToggleTask: (id: string) => void;
+  onDeleteTask: (id: string) => void;
 }
 
-const ListView: React.FC<ListViewProps> = ({ tasks, onToggleTask }) => {
+const ListView: React.FC<ListViewProps> = ({ tasks, onToggleTask, onDeleteTask }) => {
   const groups = useMemo(() => {
     const morning = tasks.filter(t => t.startTime < '12:00').sort((a, b) => a.startTime.localeCompare(b.startTime));
     const afternoon = tasks.filter(t => t.startTime >= '12:00' && t.startTime < '18:00').sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -62,10 +63,23 @@ const ListView: React.FC<ListViewProps> = ({ tasks, onToggleTask }) => {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-1">
-                   {Array.from({ length: task.priority }).map((_, i) => (
-                     <span key={i} className="text-[10px] text-amber-400">★</span>
-                   ))}
+                <div className="flex items-center gap-3">
+                   <div className="flex gap-1">
+                      {Array.from({ length: task.priority }).map((_, i) => (
+                        <span key={i} className="text-[10px] text-amber-400">★</span>
+                      ))}
+                   </div>
+                   <button 
+                    onClick={(e) => { 
+                      e.preventDefault();
+                      e.stopPropagation(); 
+                      onDeleteTask(task.id); 
+                    }}
+                    className="opacity-40 group-hover:opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl text-red-400 transition-all z-20"
+                    title="删除任务"
+                   >
+                     🗑️
+                   </button>
                 </div>
               </div>
             ))}
