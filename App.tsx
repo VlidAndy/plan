@@ -39,20 +39,40 @@ const App: React.FC = () => {
     modelId: 'gemini-3-flash-preview'
   });
 
+  // 初始化加载
   useEffect(() => {
     const savedTasks = localStorage.getItem('zm_tasks');
     const savedConfig = localStorage.getItem('zm_ai_config');
     const savedDarkMode = localStorage.getItem('zm_darkmode');
+    
     if (savedTasks) setTasks(JSON.parse(savedTasks)); else setTasks(MOCK_TASKS);
     if (savedConfig) setAiConfig(JSON.parse(savedConfig));
-    if (savedDarkMode === 'true') setDarkMode(true);
+    
+    // 初始化主题
+    const isDark = savedDarkMode === 'true';
+    setDarkMode(isDark);
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   }, []);
 
+  // 任务与配置持久化
   useEffect(() => {
     localStorage.setItem('zm_tasks', JSON.stringify(tasks));
     localStorage.setItem('zm_ai_config', JSON.stringify(aiConfig));
-    if (darkMode) document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark');
-  }, [tasks, aiConfig, darkMode]);
+  }, [tasks, aiConfig]);
+
+  // 主题切换副作用
+  useEffect(() => {
+    localStorage.setItem('zm_darkmode', String(darkMode));
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   const filteredTasks = useMemo(() => tasks.filter(t => t.date === selectedDate), [tasks, selectedDate]);
 
