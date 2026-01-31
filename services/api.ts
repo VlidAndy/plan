@@ -2,7 +2,7 @@
 import { Task } from "../types";
 
 // 开发环境下直连后端测试，生产环境通常使用相对路径 "/api/tasks"
-const API_BASE = "http://localhost:8080/api/tasks";
+const API_BASE = "http://192.168.1.10:8080/api/tasks";
 
 /**
  * 通用响应结构适配 AjaxResult
