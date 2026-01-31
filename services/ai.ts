@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NLPResult, Category, AIConfig, AIProvider, Task } from "../types";
 
-// 延迟初始化 Gemini，以防 API_KEY 为空
+// 延迟初始化 Gemini
 let geminiAi: GoogleGenAI | null = null;
 const getGeminiClient = () => {
   const apiKey = process.env.API_KEY;
@@ -42,14 +42,27 @@ async function callOpenAICompatible(config: AIConfig, prompt: string, systemInst
   return data.choices[0].message.content;
 }
 
-export async function parseNLPTask(input: string, config: AIConfig): Promise<Partial<NLPResult>> {
-  const prompt = `将以下自然语言日程描述解析为JSON对象，只需返回JSON。输入: "${input}"。格式: {"title": string, "startTime": "HH:mm", "endTime": "HH:mm", "category": "工作/学习/健康/生活", "priority": 1-3}`;
+export async function parseNLPTask(input: string, config: AIConfig, todayDate: string): Promise<Partial<NLPResult>> {
+  // 提示词升级：明确 reference 是 Today
+  const prompt = `你是一个专业的日程解析助手。
+【重要】今天的日期是: ${todayDate} (yyyy-MM-dd)。
+任务描述: "${input}"。
+
+请将其解析为JSON对象，要求：
+1. date: 任务的日期 (yyyy-MM-dd)。
+   - 如果描述包含"明天"、"后天"、"周五"等，请基于今天的日期 [${todayDate}] 准确计算。
+   - 如果描述中没有任何日期信息，请直接返回今天的日期 [${todayDate}]。
+2. startTime: 任务开始时间 (HH:mm:ss)。
+3. endTime: 任务结束时间 (HH:mm:ss)，若无提及则默认开始后1小时。
+4. category: 从 [工作, 学习, 健康, 生活] 中选一。
+5. priority: 优先级 1(低), 2(中), 3(高)。
+
+返回示例: {"title": "打羽毛球", "date": "2024-05-21", "startTime": "18:00:00", "endTime": "20:00:00", "category": "健康", "priority": 2}`;
   
   try {
     if (config.provider === AIProvider.GEMINI) {
       const client = getGeminiClient();
       if (!client) {
-        console.warn("Gemini API Key not set, skipping AI parsing.");
         return { title: input };
       }
       const response = await client.models.generateContent({
@@ -61,18 +74,19 @@ export async function parseNLPTask(input: string, config: AIConfig): Promise<Par
             type: Type.OBJECT,
             properties: {
               title: { type: Type.STRING },
+              date: { type: Type.STRING },
               startTime: { type: Type.STRING },
               endTime: { type: Type.STRING },
               category: { type: Type.STRING, enum: Object.values(Category) },
               priority: { type: Type.INTEGER }
             },
-            required: ["title"]
+            required: ["title", "date", "startTime"]
           }
         }
       });
       return JSON.parse(response.text || "{}");
     } else {
-      const result = await callOpenAICompatible(config, prompt, "你是一个专业的日程解析助手，只输出JSON格式。", "json_object");
+      const result = await callOpenAICompatible(config, prompt, "你是一个只输出严格JSON的日程解析助手。", "json_object");
       return JSON.parse(result);
     }
   } catch (error) {

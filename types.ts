@@ -48,6 +48,7 @@ export interface Task {
 
 export interface NLPResult {
   title: string;
+  date?: string; // 新增：yyyy-MM-dd
   startTime?: string;
   endTime?: string;
   category?: Category;

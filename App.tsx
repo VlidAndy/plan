@@ -38,7 +38,7 @@ const App: React.FC = () => {
     modelId: 'gemini-3-flash-preview'
   });
 
-  // 初始化加载：从 API 获取任务，从 localStorage 获取配置
+  // 初始化加载
   const fetchTasks = async () => {
     setIsApiLoading(true);
     try {
@@ -63,7 +63,6 @@ const App: React.FC = () => {
     fetchTasks();
   }, []);
 
-  // 配置持久化保持本地存储（因为通常配置不涉及多表关联，存在本地更快捷）
   useEffect(() => {
     localStorage.setItem('zm_ai_config', JSON.stringify(aiConfig));
   }, [aiConfig]);
@@ -96,16 +95,12 @@ const App: React.FC = () => {
   const toggleTask = async (id: string) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
-
-    // 乐观更新
     const originalTasks = [...tasks];
     setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-
     try {
       const updated = await taskApi.update(id, { completed: !task.completed });
       if (!updated) throw new Error("Update failed");
     } catch (err) {
-      // 失败回滚
       setTasks(originalTasks);
       alert("同步失败，请检查网络连接");
     }
@@ -115,7 +110,6 @@ const App: React.FC = () => {
     if (deleteConfirmId) {
       const originalTasks = [...tasks];
       setTasks(prev => prev.filter(t => t.id !== deleteConfirmId));
-      
       try {
         const success = await taskApi.delete(deleteConfirmId);
         if (!success) throw new Error("Delete failed");
@@ -131,11 +125,12 @@ const App: React.FC = () => {
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
+    
+    const realToday = new Date().toISOString().split('T')[0];
     const now = new Date();
-    const isToday = selectedDate === now.toISOString().split('T')[0];
-    const defaultStartHour = isToday ? (now.getHours() + 1) % 24 : 9;
-    const defaultStartTime = `${String(defaultStartHour).padStart(2, '0')}:00`;
-    const defaultEndTime = `${String((defaultStartHour + 1) % 24).padStart(2, '0')}:00`;
+    const defaultStartHour = (now.getHours() + 1) % 24;
+    const defaultStartTime = `${String(defaultStartHour).padStart(2, '0')}:00:00`;
+    const defaultEndTime = `${String((defaultStartHour + 1) % 24).padStart(2, '0')}:00:00`;
     
     setIsLoading(true);
     
@@ -153,15 +148,31 @@ const App: React.FC = () => {
       const hasKey = (aiConfig.provider === AIProvider.GEMINI && process.env.API_KEY && process.env.API_KEY !== 'undefined') || aiConfig.apiKey;
       
       if (hasKey) {
-        const result = await parseNLPTask(input, aiConfig);
+        const result = await parseNLPTask(input, aiConfig, realToday);
+        
+        let targetDate = selectedDate; 
+        
+        if (result.date && result.date !== realToday) {
+          targetDate = result.date;
+        } else if (result.date === realToday) {
+          const dateKeywords = ['今天', '今晚', '今日', 'today', 'now', '现在'];
+          const hasTodayKeyword = dateKeywords.some(kw => input.toLowerCase().includes(kw));
+          targetDate = hasTodayKeyword ? realToday : selectedDate;
+        }
+
         newTaskData = {
           ...newTaskData,
           title: result.title || input,
-          startTime: result.startTime || defaultStartTime,
-          endTime: result.endTime || defaultEndTime,
+          startTime: result.startTime ? result.startTime.substring(0, 5) : defaultStartTime.substring(0, 5),
+          endTime: result.endTime ? result.endTime.substring(0, 5) : defaultEndTime.substring(0, 5),
           category: (result.category as Category) || Category.LIFE,
           priority: result.priority || Priority.MEDIUM,
+          date: targetDate
         };
+
+        if (targetDate !== selectedDate) {
+          setSelectedDate(targetDate);
+        }
       }
 
       const savedTask = await taskApi.create(newTaskData);
@@ -199,7 +210,6 @@ const App: React.FC = () => {
         return <Timeline tasks={filteredTasks} onToggleTask={toggleTask} onDeleteTask={setDeleteConfirmId} onAddTaskAt={(h) => setInput(`${String(h).padStart(2, '0')}:00 `)} />;
       case 'day-list':
         return <ListView tasks={filteredTasks} onToggleTask={toggleTask} onDeleteTask={setDeleteConfirmId} />;
-      // 周、月、年视角逻辑保持不变
       case 'week':
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -278,9 +288,9 @@ const App: React.FC = () => {
                 onChange={(e) => setInput(e.target.value)}
                 disabled={isLoading}
                 placeholder="尝试输入：'明天早上9点和团队开会'..."
-                className="w-full bg-white dark:bg-slate-800 border-none shadow-2xl shadow-purple-500/5 rounded-[2.2rem] py-6 pl-10 pr-20 text-xl font-medium focus:ring-2 focus:ring-purple-400/20 transition-all outline-none dark:text-white"
+                className="w-full bg-white dark:bg-slate-800 border-none shadow-2xl shadow-purple-500/5 rounded-full py-6 pl-10 pr-20 text-xl font-medium focus:ring-2 focus:ring-purple-400/20 transition-all outline-none dark:text-white"
               />
-              <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 bg-gradient-to-br from-[#8A7CFE] to-[#FF9E6D] w-14 h-14 rounded-[1.5rem] text-white shadow-xl flex items-center justify-center">
+              <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 bg-gradient-to-br from-[#8A7CFE] to-[#FF9E6D] w-14 h-14 rounded-full text-white shadow-xl flex items-center justify-center">
                 {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : "✨"}
               </button>
             </form>
@@ -312,19 +322,18 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* 弹窗部分 */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setDeleteConfirmId(null)}></div>
-          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-8 flex flex-col items-center text-center gap-6">
+          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-8 flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200">
             <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-2xl flex items-center justify-center text-3xl">🗑️</div>
             <div>
               <h3 className="text-xl font-bold dark:text-white">确定删除任务？</h3>
               <p className="text-sm text-slate-400 mt-2">此操作不可撤销，云端时光也会随之消失。</p>
             </div>
             <div className="flex gap-3 w-full">
-              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold text-sm">取消</button>
-              <button onClick={confirmDelete} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-red-500/20">确认删除</button>
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">取消</button>
+              <button onClick={confirmDelete} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-red-500/20 hover:bg-red-600 transition-colors">确认删除</button>
             </div>
           </div>
         </div>
