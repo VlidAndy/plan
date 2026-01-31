@@ -17,7 +17,7 @@ export default defineConfig({
     proxy: {
       // 将所有 /api 请求代理到 Spring Boot 后端
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'https://vli-task-manager-api-123.loca.lt',
         changeOrigin: true,
         secure: false,
       }
