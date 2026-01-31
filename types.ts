@@ -25,6 +25,8 @@ export enum AIProvider {
   CUSTOM = 'custom'
 }
 
+export type ViewType = 'day-timeline' | 'day-list' | 'week' | 'month' | 'year';
+
 export interface AIConfig {
   provider: AIProvider;
   baseUrl: string;
