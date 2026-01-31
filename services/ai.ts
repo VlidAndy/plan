@@ -2,7 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NLPResult, Category, AIConfig, AIProvider, Task } from "../types";
 
-// 延迟初始化 Gemini
 let geminiAi: GoogleGenAI | null = null;
 const getGeminiClient = () => {
   const apiKey = process.env.API_KEY;
@@ -43,28 +42,12 @@ async function callOpenAICompatible(config: AIConfig, prompt: string, systemInst
 }
 
 export async function parseNLPTask(input: string, config: AIConfig, todayDate: string): Promise<Partial<NLPResult>> {
-  // 提示词升级：明确 reference 是 Today
-  const prompt = `你是一个专业的日程解析助手。
-【重要】今天的日期是: ${todayDate} (yyyy-MM-dd)。
-任务描述: "${input}"。
-
-请将其解析为JSON对象，要求：
-1. date: 任务的日期 (yyyy-MM-dd)。
-   - 如果描述包含"明天"、"后天"、"周五"等，请基于今天的日期 [${todayDate}] 准确计算。
-   - 如果描述中没有任何日期信息，请直接返回今天的日期 [${todayDate}]。
-2. startTime: 任务开始时间 (HH:mm:ss)。
-3. endTime: 任务结束时间 (HH:mm:ss)，若无提及则默认开始后1小时。
-4. category: 从 [工作, 学习, 健康, 生活] 中选一。
-5. priority: 优先级 1(低), 2(中), 3(高)。
-
-返回示例: {"title": "打羽毛球", "date": "2024-05-21", "startTime": "18:00:00", "endTime": "20:00:00", "category": "健康", "priority": 2}`;
+  const prompt = `你是一个专业的日程解析助手。今天的日期是: ${todayDate}。解析 "${input}" 为JSON对象。需包含title, date, startTime, endTime, category, priority。`;
   
   try {
     if (config.provider === AIProvider.GEMINI) {
       const client = getGeminiClient();
-      if (!client) {
-        return { title: input };
-      }
+      if (!client) return { title: input };
       const response = await client.models.generateContent({
         model: config.modelId,
         contents: prompt,
@@ -86,59 +69,67 @@ export async function parseNLPTask(input: string, config: AIConfig, todayDate: s
       });
       return JSON.parse(response.text || "{}");
     } else {
-      const result = await callOpenAICompatible(config, prompt, "你是一个只输出严格JSON的日程解析助手。", "json_object");
+      const result = await callOpenAICompatible(config, prompt, "你是一个只输出JSON的助手。", "json_object");
       return JSON.parse(result);
     }
   } catch (error) {
-    console.error("AI Parsing Error:", error);
     return { title: input };
   }
 }
 
 export async function getSmartSuggestions(tasks: Task[], config: AIConfig): Promise<string> {
-  const taskSummary = tasks.map(t => `${t.startTime}-${t.endTime}: ${t.title}`).join(', ');
-  const prompt = `基于目前的日程: [${taskSummary}]，作为一位贴心的私人助理，给出一个极简的建议（20字以内）。`;
-  const system = "你是一个清新、治愈、温柔的日程小助手，语气像宫崎骏电影里的角色。";
+  const taskSummary = tasks.map(t => `${t.startTime}: ${t.title}`).join(', ');
+  const prompt = `基于日程: [${taskSummary}]，作为治愈系助理，给一个20字以内的贴心建议。`;
+  const system = "你是一个清新、治愈的日程小助手，语气像宫崎骏电影里的角色。";
 
   try {
     if (config.provider === AIProvider.GEMINI) {
       const client = getGeminiClient();
-      if (!client) return "保持专注，也要记得给心灵留白 ✨";
-      
+      if (!client) return "愿你这一天，如晨曦般明媚 ✨";
       const response = await client.models.generateContent({
         model: config.modelId,
         contents: prompt,
         config: { systemInstruction: system }
       });
-      return response.text || "保持专注，也要记得给心灵留白 ✨";
+      return response.text || "记得给心灵留白 ✨";
     } else {
       return await callOpenAICompatible(config, prompt, system);
     }
   } catch (error) {
-    return "接下来30分钟有空档，喝杯温水休息一下吧？☕";
+    return "记得喝杯温水休息一下吧？☕";
   }
+}
+
+export async function getMorningInspiration(config: AIConfig): Promise<string> {
+  const prompt = "为用户新的一天提供一句充满力量且治愈的晨间寄语，包含对今日的期许。25字以内。";
+  const system = "你是一位温柔的晨间播报员，言语中带着森林的清香。";
+  try {
+    const client = getGeminiClient();
+    if (!client) return "早安！今天又是崭新的一页，尽情涂鸦吧。";
+    const response = await client.models.generateContent({
+      model: config.modelId,
+      contents: prompt,
+      config: { systemInstruction: system }
+    });
+    return response.text || "早安！";
+  } catch { return "早安！"; }
 }
 
 export async function generateJournalImage(tasks: Task[], mood: string | null, modelId: string = "gemini-2.5-flash-image"): Promise<string | null> {
   try {
     const client = getGeminiClient();
     if (!client) return null;
-
     const completedTasks = tasks.filter(t => t.completed).map(t => t.title).join(', ');
-    const prompt = `A aesthetic watercolor illustration of a daily journal. Mood: ${mood || 'peaceful'}. Achievements: ${completedTasks || 'started today'}. Ghibli style.`;
-
+    const prompt = `Hand-drawn aesthetic watercolor illustration. Concept: Daily achievement journal. Elements: ${completedTasks || 'peaceful moments'}. Mood: ${mood || 'cozy'}. Studio Ghibli inspired, high quality.`;
     const response = await client.models.generateContent({
       model: modelId,
       contents: { parts: [{ text: prompt }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
-
     const parts = response.candidates?.[0]?.content?.parts || [];
     for (const part of parts) {
       if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
     return null;
-  } catch (error) {
-    return null;
-  }
+  } catch { return null; }
 }

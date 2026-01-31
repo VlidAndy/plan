@@ -1,8 +1,9 @@
 
 import { Task } from "../types";
 
-// 开发环境下直连后端测试，生产环境通常使用相对路径 "/api/tasks"
-const API_BASE = "http://192.168.1.10:8080/api/tasks";
+// 改为使用相对路径，以便通过 vite.config.ts 中配置的 proxy 进行转发
+// 这样可以避免硬编码 IP 地址导致的 NetworkError，并解决开发环境下的跨域问题
+const API_BASE = "/api/tasks";
 
 /**
  * 通用响应结构适配 AjaxResult
@@ -18,7 +19,7 @@ interface AjaxResult<T> {
  */
 async function handleResponse<T>(res: Response): Promise<T | null> {
   const contentType = res.headers.get("content-type");
-  const rawText = (await res.text()).trim(); // 获取原始文本并去空格
+  const rawText = (await res.text()).trim(); 
   
   if (!res.ok) {
     console.error(`[API 错误] HTTP ${res.status}:`, rawText);
@@ -27,8 +28,6 @@ async function handleResponse<T>(res: Response): Promise<T | null> {
 
   // 1. 如果后端返回的是像 "200 OK" 这种纯字符串而非 JSON
   if (!contentType || !contentType.includes("application/json")) {
-    console.warn(`[意外响应] 期待 JSON 但收到: "${rawText}" (Content-Type: ${contentType})`);
-    // 如果返回内容正好是 "200 OK"，则认为操作成功但没有返回数据
     if (rawText.toLowerCase() === "ok" || rawText.includes("200")) {
        return {} as T; 
     }
@@ -38,7 +37,6 @@ async function handleResponse<T>(res: Response): Promise<T | null> {
   // 2. 尝试解析 JSON
   try {
     const json: AjaxResult<T> = JSON.parse(rawText);
-    // 适配 Java 后端 AjaxResult 约定 (200 为成功)
     if (json.code === 200 || json.code === 0) {
       return json.data;
     } else {
@@ -47,7 +45,6 @@ async function handleResponse<T>(res: Response): Promise<T | null> {
     }
   } catch (e) {
     console.error("[JSON 解析失败] 无法将以下内容解析为 JSON 对象:", rawText);
-    console.error("解析错误详情:", e);
     return null;
   }
 }
@@ -58,14 +55,19 @@ export const taskApi = {
    */
   async getAll(): Promise<Task[]> {
     try {
-      const res = await fetch(API_BASE, {
-        mode: 'cors', // 显式开启跨域模式
-      });
+      const res = await fetch(API_BASE);
       const data = await handleResponse<Task[]>(res);
-      return data || [];
-    } catch (error) {
-      console.error("[网络错误] 获取任务列表失败:", error);
+      if (data) {
+        // 成功获取后同步一份到本地缓存，作为降级兜底
+        localStorage.setItem('zm_tasks_backup', JSON.stringify(data));
+        return data;
+      }
       return [];
+    } catch (error) {
+      console.error("[网络错误] 获取任务列表失败，尝试读取本地备份:", error);
+      // 网络错误时从本地备份读取，确保应用可用性
+      const backup = localStorage.getItem('zm_tasks_backup');
+      return backup ? JSON.parse(backup) : [];
     }
   },
 
@@ -78,7 +80,6 @@ export const taskApi = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task),
-        mode: 'cors',
       });
       return await handleResponse<Task>(res);
     } catch (error) {
@@ -96,7 +97,6 @@ export const taskApi = {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
-        mode: 'cors',
       });
       return await handleResponse<Task>(res);
     } catch (error) {
@@ -112,9 +112,7 @@ export const taskApi = {
     try {
       const res = await fetch(`${API_BASE}/${id}`, {
         method: 'DELETE',
-        mode: 'cors',
       });
-      // 删除操作通常只要 HTTP 200 或 AjaxResult.code 200 即算成功
       const data = await handleResponse<any>(res);
       return data !== null;
     } catch (error) {

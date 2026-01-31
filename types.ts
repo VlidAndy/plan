@@ -46,9 +46,17 @@ export interface Task {
   date: string; 
 }
 
+export interface DailyLog {
+  date: string;
+  goal: string;
+  mood: Mood | null;
+  reflection: string;
+  journalImageUrl: string | null;
+}
+
 export interface NLPResult {
   title: string;
-  date?: string; // 新增：yyyy-MM-dd
+  date?: string; 
   startTime?: string;
   endTime?: string;
   category?: Category;
