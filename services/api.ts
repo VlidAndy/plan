@@ -1,14 +1,20 @@
 
 import { Task } from "../types";
 
-// 改为使用相对路径，以便通过 vite.config.ts 中配置的 proxy 进行转发
-const API_BASE = "/api/tasks";
+/**
+ * 后端 API 基础路径
+ * 注意：如果您通过隧道服务访问前端，请确保此处的 URL 指向正确的后端服务地址。
+ * 如果前端和后端共享同一个隧道，可以使用相对路径，但必须确保 Vite 代理配置正确。
+ */
+const API_BASE_URL = "https://vli-task-manager-api-123.loca.lt";
+const API_BASE = `${API_BASE_URL}/api/tasks`;
 
 /**
  * 通用请求头，包含 bypass-tunnel-reminder 以绕过 localtunnel 的提醒页面
  */
 const COMMON_HEADERS = {
   'bypass-tunnel-reminder': 'true',
+  'Accept': 'application/json',
 };
 
 /**
@@ -37,6 +43,10 @@ async function handleResponse<T>(res: Response): Promise<T | null> {
     if (rawText.toLowerCase() === "ok" || rawText.includes("200")) {
        return {} as T; 
     }
+    // 如果返回的是 HTML（常见于请求到了前端静态服务器），记录警告
+    if (rawText.startsWith('<!DOCTYPE html>')) {
+      console.warn("[API 警告] 收到 HTML 响应而非 JSON。请检查后端 URL 是否正确。");
+    }
     return null;
   }
 
@@ -62,7 +72,8 @@ export const taskApi = {
   async getAll(): Promise<Task[]> {
     try {
       const res = await fetch(API_BASE, {
-        headers: COMMON_HEADERS
+        headers: COMMON_HEADERS,
+        mode: 'cors'
       });
       const data = await handleResponse<Task[]>(res);
       if (data) {
@@ -89,6 +100,7 @@ export const taskApi = {
           ...COMMON_HEADERS 
         },
         body: JSON.stringify(task),
+        mode: 'cors'
       });
       return await handleResponse<Task>(res);
     } catch (error) {
@@ -109,6 +121,7 @@ export const taskApi = {
           ...COMMON_HEADERS
         },
         body: JSON.stringify(updates),
+        mode: 'cors'
       });
       return await handleResponse<Task>(res);
     } catch (error) {
@@ -124,7 +137,8 @@ export const taskApi = {
     try {
       const res = await fetch(`${API_BASE}/${id}`, {
         method: 'DELETE',
-        headers: COMMON_HEADERS
+        headers: COMMON_HEADERS,
+        mode: 'cors'
       });
       const data = await handleResponse<any>(res);
       return data !== null;

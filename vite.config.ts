@@ -13,17 +13,6 @@ export default defineConfig({
     target: 'esnext'
   },
   server: {
-    port: 3000,
-    proxy: {
-      // 将所有 /api 请求代理到 Spring Boot 后端
-      '/api': {
-        target: 'https://vli-task-manager-api-123.loca.lt',
-        changeOrigin: true,
-        secure: false,
-        headers: {
-          'bypass-tunnel-reminder': 'true'
-        }
-      }
-    }
+    port: 3000
   }
 });
