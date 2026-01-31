@@ -20,6 +20,9 @@ export default defineConfig({
         target: 'https://vli-task-manager-api-123.loca.lt',
         changeOrigin: true,
         secure: false,
+        headers: {
+          'bypass-tunnel-reminder': 'true'
+        }
       }
     }
   }

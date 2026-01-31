@@ -2,8 +2,14 @@
 import { Task } from "../types";
 
 // 改为使用相对路径，以便通过 vite.config.ts 中配置的 proxy 进行转发
-// 这样可以避免硬编码 IP 地址导致的 NetworkError，并解决开发环境下的跨域问题
 const API_BASE = "/api/tasks";
+
+/**
+ * 通用请求头，包含 bypass-tunnel-reminder 以绕过 localtunnel 的提醒页面
+ */
+const COMMON_HEADERS = {
+  'bypass-tunnel-reminder': 'true',
+};
 
 /**
  * 通用响应结构适配 AjaxResult
@@ -55,17 +61,17 @@ export const taskApi = {
    */
   async getAll(): Promise<Task[]> {
     try {
-      const res = await fetch(API_BASE);
+      const res = await fetch(API_BASE, {
+        headers: COMMON_HEADERS
+      });
       const data = await handleResponse<Task[]>(res);
       if (data) {
-        // 成功获取后同步一份到本地缓存，作为降级兜底
         localStorage.setItem('zm_tasks_backup', JSON.stringify(data));
         return data;
       }
       return [];
     } catch (error) {
       console.error("[网络错误] 获取任务列表失败，尝试读取本地备份:", error);
-      // 网络错误时从本地备份读取，确保应用可用性
       const backup = localStorage.getItem('zm_tasks_backup');
       return backup ? JSON.parse(backup) : [];
     }
@@ -78,7 +84,10 @@ export const taskApi = {
     try {
       const res = await fetch(API_BASE, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...COMMON_HEADERS 
+        },
         body: JSON.stringify(task),
       });
       return await handleResponse<Task>(res);
@@ -95,7 +104,10 @@ export const taskApi = {
     try {
       const res = await fetch(`${API_BASE}/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...COMMON_HEADERS
+        },
         body: JSON.stringify(updates),
       });
       return await handleResponse<Task>(res);
@@ -112,6 +124,7 @@ export const taskApi = {
     try {
       const res = await fetch(`${API_BASE}/${id}`, {
         method: 'DELETE',
+        headers: COMMON_HEADERS
       });
       const data = await handleResponse<any>(res);
       return data !== null;
