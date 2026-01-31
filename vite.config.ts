@@ -13,6 +13,14 @@ export default defineConfig({
     target: 'esnext'
   },
   server: {
-    port: 3000
+    port: 3000,
+    proxy: {
+      // 将所有 /api 请求代理到 Spring Boot 后端
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   }
 });
